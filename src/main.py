@@ -8,8 +8,12 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, Characters, Planets, Vehicles, Favorites
+from models import db, Usuario, Actividad, Evento, Provincia, Lugar_Evento, Participantes_Evento, Tipo_De_Actividad, Estados
 
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
 
 
 app = Flask(__name__)
@@ -31,84 +35,90 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/characters', methods=['GET'])
-def get_characters():
-    characters = Characters.query.all()
-    all_characters = list(map(lambda character: character.serialize(), characters))
-    return jsonify(all_characters)
+#guardar data de usuario y validar
+@app.route('/nuevo/registro', methods=['POST'])    
+def registro():
+    body = request.get_json()
+    email = body['email']
+    password = body['password']
+    nombre = body['nombre']
+    provincia = body['provincia']
+    numero_hijos = body['numero_hijos']
+    aux_usuario = Usuario.query.filter_by(email=email).first()
+    if not (aux_usuario is None):
+       raise APIException("Usuario ya existe.")
+    usuario = Usuario(email=email, password=password, is_active=True)
+    db.session.add(usuario)
+    db.session.commit()
+    return jsonify(usuario.serialize()),201
 
-@app.route('/characters/<int:character_id>', methods=['GET'])
-def get_character(character_id):
+#validar usuario y generar token
+@app.route('/login', methods=['POST'])
+def login():
+    body = request.get_json()
+    email = body['email']
+    password = body['password']
+    usuario = Usuario.query.filter_by(email=email).first()
+    if usuario is None:
+        raise APIException("Usuario no existe")
+    if usuario.password != password:
+        raise APIException("Usuario no encontrado")
+    data = {
+        'email': usuario.email,
+        'usuario_id': usuario.id
+    }
+    token = create_access_token(identity=data)
+    return jsonify(token)
+
+#obtener toda la info de todas las actividades
+@app.route('/actividades', methods=['GET'])
+@jwt_required()
+def get_actividades():
+    actividades = Actividad.query.all()
+    all_actividades = list(map(lambda actividad: actividad.serialize(), actividades))
+    return jsonify(all_actividades)
+
+#obtener detalle actividad por id
+@app.route('/actividades/<int:actividad_id>', methods=['GET'])
+def get_actividad(actividad_id):
     if request.method == 'GET':
-        character = Characters.query.get(character_id)
-        if character is None:
-            raise APIException("Character not found")
-        return jsonify(character.serialize())
+        actividad = Actividad.query.get(actividad_id)
+        if actividad is None:
+            raise APIException("Actividad no encontrada")
+        return jsonify(actividad.serialize())
 
-@app.route('/planets', methods=['GET'])
-def get_planets():
-    planets = Planets.query.all()
-    all_planets = list(map(lambda planet: planet.serialize(), planets))
-    return jsonify(all_planets)
+#obtener eventos en provincia especifica  SOS
+@app.route('/eventos/<int:provincia_id>', methods=['GET'])
+@jwt_required()
+def get_eventos(provincia_id):
+    lugares = Lugar_Evento.query.filter_by(provincia_id = provincia_id).all()
+    #db lugar_evento: id, evento_id, provincia_id, direccion
+    all_eventos = []
+    for lugar in lugares:
+        eventos = Evento.query.filter_by(ubicacion_id = lugar.id).all()
+        for evento in eventos:
+           all_eventos.append(evento) 
+    all_eventos_serialized = list(map(lambda evento: evento.serialize(), all_eventos))
+    return jsonify(all_eventos_serialized)
 
-@app.route('/planets/<int:planet_id>', methods=['GET'])
-def get_planet(planet_id):
+#obtener informacion detalle de evento por id
+@app.route('/evento/<int:evento_id>', methods=['GET'])
+@jwt_required()
+def get_evento(evento_id):
     if request.method == 'GET':
-        planet = Planets.query.get(planet_id)
-        if planet is None:
-            raise APIException("Planet not found")
-        return jsonify(planet.serialize())
+        evento = Evento.query.get(evento_id)
+        if evento is None:
+            raise APIException("Evento no encontrado")
+        return jsonify(evento.serialize())
 
-@app.route('/user', methods=['GET'])
-def get_users():
-    users = User.query.all()
-    all_users = list(map(lambda user: user.serialize(), users))
-    return jsonify(all_users)
+@app.route('/eventoscreados/usuario/<int:usuario_id>', methods=['GET'])
+@jwt_required()
+def get_eventos_creados_usuario(usuario_id):
+    eventos = Evento.query.filter_by(creador_id = usuario_id).all()
+    eventos_creados = list(map(lambda evento: evento.serialize(), eventos))
+    return jsonify(eventos_creados)
 
-@app.route('/user/<int:user_id>', methods=['GET'])
-def get_user(user_id):
-    if request.method == 'GET':
-        user = User.query.get(user_id)
-        if user is None:
-            raise APIException("User not found")
-        return jsonify(user.serialize())
-
-@app.route('/favorites/user/<int:user_id>', methods=['GET'])
-def get_favorites(user_id):
-    favorites = Favorites.query.filter_by(user_id = user_id).all()
-    return jsonify({'favorites': [favorite.serialize() for favorite in favorites]})
-
-@app.route('/favorites/<int:user_id>/planets/<int:planet_id>', methods=['POST', 'DELETE'])
-def add_favorite_planet(user_id, planet_id):
-    if request.method == 'POST':
-        planet_favorite = Favorites(planet_id=planet_id, user_id=user_id)
-        db.session.add(planet_favorite)
-        db.session.commit()
-        return jsonify(planet_favorite.serialize())
-
-    elif request.method == 'DELETE':
-        planet_favorite = Favorites.query.filter_by(planet_id = planet_id, user_id = user_id).first()
-        if planet_favorite is None:
-            raise APIException("Planet not in this user's favorites.")
-        db.session.delete(planet_favorite)
-        db.session.commit()
-        return jsonify(planet_favorite.serialize())
-
-@app.route('/favorites/<int:user_id>/characters/<int:character_id>', methods=['POST', 'DELETE'])
-def add_character_planet(user_id, character_id):
-    if request.method == 'POST':
-        character_favorite = Favorites(character_id=character_id, user_id=user_id)
-        db.session.add(character_favorite)
-        db.session.commit()
-        return jsonify(character_favorite.serialize())
-    
-    elif request.method == 'DELETE':
-        character_favorite = Favorites.query.filter_by(character_id = character_id, user_id = user_id).first()
-        if character_favorite is None:
-            raise APIException("Character not in this user's favorites.")
-        db.session.delete(character_favorite)
-        db.session.commit()
-        return jsonify(character_favorite.serialize())
+# #hasta aquí todos los endpoints están probados, para probarlos sin token solo quitar el decorador de JWT_required
     
 # this only runs if `$  ` is executed
 if __name__ == '__main__':

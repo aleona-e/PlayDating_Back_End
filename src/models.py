@@ -3,138 +3,159 @@ from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
-class User(db.Model):
-    __tablename__= "user"
+class Usuario(db.Model):
+    __tablename__= "usuario"
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    username = db.Column(db.String(250), nullable=False)
-    first_name = db.Column(db.String(250), nullable=False)
-    last_name = db.Column(db.String(250), nullable=False)
+    nombre = db.Column(db.String(250), nullable=False)
+    password = db.Column(db.String(250), nullable=False)
+    provincia_id = db.Column(db.Integer, db.ForeignKey('provincia.id'), nullable=False)
+    numero_hijos = db.Column(db.Integer, nullable=False)
+    provincia = db.relationship('Provincia')
 
     def __repr__(self):
-        return '<User %r>' % self.username
+        return '<Usuario %r>' % self.email
 
     def serialize(self):
         return {
             "id": self.id,
             "email": self.email,
-            "username": self.username,
-            "first_name": self.first_name,
-            "last_name": self.last_name
+            "nombre": self.nombre,
+            "provincia": self.provincia_id,
+            "numero_hijos": self.last_name
             # do not serialize the password, its a security breach
             }
 
-class Favorites(db.Model):
-    __tablename__= 'favorites'
+class Actividad(db.Model):
+    __tablename__= 'actividad'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    character_id = db.Column(db.Integer, db.ForeignKey('characters.id'), nullable=True)
-    planet_id = db.Column(db.Integer, db.ForeignKey('planets.id'), nullable=True)
-    vehicle_id = db.Column(db.Integer, db.ForeignKey('vehicles.id'), nullable=True)
-    users = db.relationship('User')
-    characters = db.relationship('Characters')
-    planets = db.relationship('Planets')
-    vehicles = db.relationship('Vehicles')
+    nombre = db.Column(db.String(250), nullable=False)
+    descripcion = db.Column(db.String(250), nullable=False)
+    tipo_de_actividad_id = db.Column(db.Integer, db.ForeignKey('tipo_de_actividad.id'))
+    imagen = db.Column(db.String(250), nullable=False)
+    tipo_de_actividad = db.relationship('Tipo_De_Actividad')
 
     def __repr__(self):
-        return '<Favorites %r>' % self.id
+        return '<Actividad %r>' % self.nombre
 
     def serialize(self):
         return {
-            "user_id": self.user_id,
-            "character_id": self.character_id,
-            "planet_id": self.planet_id,
-            "vehicle_id": self.vehicle_id
+            "id": self.id,
+            "nombre": self.nombre,
+            "descripcion": self.descripcion,
+            "tipo_de_actividad": repr(self.tipo_de_actividad),
+            "imagen": self.imagen
+            }
+
+class Tipo_De_Actividad(db.Model):
+    __tablename__='tipo_de_actividad'
+    id = db.Column(db.Integer, primary_key=True) 
+    tipo = db.Column(db.String(120), nullable=False)
+
+    def __repr__(self):
+        return '<Tipo_De_Actividad %r>' % self.tipo
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "tipo": self.tipo
+            }
+class Estados(db.Model):
+    __tablename__='estados'
+    id = db.Column(db.Integer, primary_key=True) 
+    estado = db.Column(db.String(120), nullable=False)
+
+    def __repr__(self):
+        return '<Estados %r>' % self.estado
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "estado": self.estado,
             }
         
-class Vehicles(db.Model):
-    __tablename__='vehicles'
+class Evento(db.Model):
+    __tablename__='evento'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120))
-    model = db.Column(db.String(120))
-    vehicle_class = db.Column(db.String(120))
-    manufacturers = db.Column(db.String(120))
-    cost = db.Column(db.Integer)
-    length = db.Column(db.Integer)
-    crew = db.Column(db.Integer)
-    passengers = db.Column(db.Integer)
-    pilots_id = db.Column(db.Integer, db.ForeignKey('characters.id'))
-    pilots = db.relationship('Characters')
+    fecha_y_hora = db.Column(db.DateTime, nullable=False)
+    creador_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
+    minimo_participantes = db.Column(db.Integer)
+    maximo_participantes = db.Column(db.Integer)
+    edad_minima = db.Column(db.Integer)
+    edad_maxima = db.Column(db.Integer)
+    ubicacion_id = db.Column(db.Integer, db.ForeignKey('lugar_evento.id'), nullable=False)
+    estado_id = db.Column(db.Integer, db.ForeignKey('estados.id'), nullable=False)
+    actividad_id = db.Column(db.Integer, db.ForeignKey('actividad.id'), nullable=False)
+    creador = db.relationship('Usuario')
+    ubicacion = db.relationship('Lugar_Evento')
+    actividad = db.relationship('Actividad')
+    estado = db.relationship('Estados')
 
     def __repr__(self):
-        return '<Vehicles %r>' % self.name
+        return '<Evento %r>' % self.id
 
     def serialize(self):
         return {
             "id": self.id,
-            "name": self.name,
-            "model": self.model,
-            "vehicle_class": self.vehicle_class,
-            "manufacturers": self.manufacturers,
-            "cost": self.cost,
-            "length": self.length,
-            "crew": self.crew,
-            "passengers": self.passengers,
-            "pilots_id": self.pilots_id
+            "fecha_y_hora": self.fecha_y_hora,
+            "creador": self.creador_id,
+            "minimo_participantes": self.minimo_participantes,
+            "maximo_participantes": self.maximo_participantes,
+            "ubicacion": self.ubicacion.serialize(),
+            "estado": repr(self.estado),
+            "actividad": repr(self.actividad)
             }
 
 
-class Planets(db.Model):
-    __tablename__='planets'
+class Provincia(db.Model):
+    __tablename__='provincia'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120)) 
-    terrain = db.Column(db.String(10))
-    population = db.Column(db.Integer)
-    diameter = db.Column(db.Integer) 
-    surface_water = db.Column(db.Integer) 
-    gravity = db.Column(db.String(120))
-    climate = db.Column(db.String(120)) 
-    orbital_period = db.Column(db.Integer)
-    rotation_period = db.Column(db.Integer)
+    nombre = db.Column(db.String(120), nullable=False) 
 
     def __repr__(self):
-        return '<Planets %r>' % self.name
+        return '<Provincia %r>' % self.nombre
 
     def serialize(self):
         return {
             "id": self.id,
-            "name": self.name,
-            "terrain": self.terrain,
-            "population": self.population,
-            "diameter": self.diameter,
-            "surface_water": self.surface_water,
-            "gravity": self.gravity,
-            "climate": self.climate,
-            "orbital_period": self.orbital_period,
-            "rotation_period": self.rotation_period
+            "nombre": self.nombre
             }
 
-class Characters(db.Model):
-    __tablename__='characters'
+class Lugar_Evento(db.Model):
+    __tablename__='lugar_evento'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120))
-    gender = db.Column(db.String(120))
-    hair_color = db.Column(db.String(120))
-    eye_color = db.Column(db.String(120))
-    mass = db.Column(db.Integer)
-    height = db.Column(db.Integer)
-    birth_year = db.Column(db.String(120)) 
-    planet_id = db.Column(db.Integer, db.ForeignKey('planets.id')) #tablename
-    planets = db.relationship('Planets') #class
+    nombre = db.Column(db.String(150), nullable=True)
+    provincia_id = db.Column(db.Integer, db.ForeignKey('provincia.id'), nullable=False)
+    direccion = db.Column(db.String(150), nullable=False)
+    provincia = db.relationship('Provincia')
 
     def __repr__(self):
-        return '<Characters %r>' % self.name
+        return '<Lugar_Evento %r>' % self.direccion
 
     def serialize(self):
         return {
             "id": self.id,
-            "name": self.name,
-            "gender": self.gender,
-            "hair_color": self.hair_color,
-            "eye_color": self.eye_color,
-            "mass": self.mass,
-            "height": self.height,
-            "birth_year": self.birth_year,
-            "planet_id": self.planet_id,
-            
-            }
+            "nombre": self.nombre,
+            "provincia": self.provincia_id,
+            "direccion": self.direccion,
+             }
+
+class Participantes_Evento(db.Model):
+    __tablename__='participantes_evento'
+    id = db.Column(db.Integer, primary_key=True)
+    evento_id = db.Column(db.Integer, db.ForeignKey('evento.id'), nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
+    num_participantes_por_usuario = db.Column(db.Integer, nullable=False)
+    evento = db.relationship('Evento')
+    usuario = db.relationship('Usuario')
+
+    def __repr__(self):
+        return '<Participantes_Evento %r>' % self.cantidad_participantes
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "evento": self.evento_id,
+            "usuario": self.usuario_id,
+            "num_participantes_por_usuario": self.num_participantes_por_usuario,
+             }
